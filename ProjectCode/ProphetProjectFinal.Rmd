@@ -1,0 +1,138 @@
+---
+title: "Prophet Project"
+author: "Connor Tomchin"
+date: "2024-11-11"
+output: html_document
+---
+
+
+```{r}
+library(prophet)
+```
+
+
+```{r}
+IBM_Goldmine <- read.csv("~/Desktop/Project Machine Learning/GoldmineIBM.csv")
+```
+
+```{r}
+library(dplyr)
+IBM_Goldmine <- IBM_Goldmine %>% rename(ds = DATE)
+IBM_Goldmine <-IBM_Goldmine %>% rename(y = avg_buy_price_LR)
+```
+
+```{r}
+IBM_Goldmine$cap <- 240
+m5 <- prophet(IBM_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+```
+
+```{r}
+future5 <- make_future_dataframe(m5, periods = 500)
+future5$cap <- 240
+fcst <- predict(m5, future5)
+plot(m5, fcst)
+```
+
+
+```{r}
+tail(fcst)
+```
+
+
+```{r}
+Google_Goldmine <- read.csv("~/Desktop/Project Machine Learning/GoldmineGoog.csv")
+```
+
+```{r}
+spec_date <- as.Date("2022-07-15")
+Google_Goldmine$AdjustedStockPrice <- ifelse(Google_Goldmine$DATE <= spec_date, Google_Goldmine$avg_buy_price_LR/20, Google_Goldmine$avg_buy_price_LR)
+```
+
+```{r}
+Google_Goldmine <-Google_Goldmine %>% rename(ds = DATE)
+Google_Goldmine <-Google_Goldmine %>% rename(y = AdjustedStockPrice)
+```
+
+```{r}
+Google_Goldmine$cap <- 191.96
+m6 <- prophet(Google_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+```
+
+```{r}
+future6 <- make_future_dataframe(m6, periods = 500)
+future6$cap <- 191.96
+fcst <- predict(m6, future6)
+plot(m6, fcst)
+```
+
+
+
+```{r}
+tail(fcst)
+```
+
+```{r}
+MSFT_Goldmine <- read.csv("~/Desktop/Project Machine Learning/GoldmineMsft.csv")
+```
+
+```{r}
+MSFT_Goldmine <-MSFT_Goldmine %>% rename(ds = DATE)
+MSFT_Goldmine <-MSFT_Goldmine %>% rename(y = avg_buy_price_LR)
+```
+
+```{r}
+MSFT_Goldmine$cap <- 467
+m7 <- prophet(MSFT_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+```
+
+```{r}
+future7 <- make_future_dataframe(m7, periods = 500)
+future7$cap <- 467
+fcst <- predict(m7, future7)
+plot(m7, fcst)
+```
+
+```{r}
+tail(fcst)
+```
+
+
+```{r}
+AAPL_Goldmine <- read.csv("~/Desktop/Project Machine Learning/GoldmineAAPL.csv")
+```
+
+```{r}
+spec_date <- as.Date("2020-08-28")
+AAPL_Goldmine$AdjustedStockPrice <- ifelse(AAPL_Goldmine$DATE <= spec_date, AAPL_Goldmine$avg_buy_price_LR/4, AAPL_Goldmine$avg_buy_price_LR)
+```
+
+
+```{r}
+AAPL_Goldmine <-AAPL_Goldmine %>% rename(ds = DATE)
+AAPL_Goldmine <-AAPL_Goldmine %>% rename(y = AdjustedStockPrice)
+```
+
+```{r}
+AAPL_Goldmine$cap <- 235
+m8 <- prophet(AAPL_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+```
+
+
+```{r}
+tail(fcst)
+```
+
+
+```{r}
+AAPL_Goldmine$cap <- 250
+m8 <- prophet(AAPL_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+```
+
+```{r}
+future8 <- make_future_dataframe(m8, periods = 500)
+future8$cap <- 250
+fcst <- predict(m8, future8)
+plot(m8, fcst)
+```
+
+

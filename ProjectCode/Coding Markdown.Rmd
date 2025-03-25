@@ -1,0 +1,154 @@
+---
+title: "Machine Learning Final Project"
+author: "Abhigyan Ghosh, Aziz Al Mezraani, Chamroeun Chhay, Connor Tomchin, Emmanuel Epau, and Lakshmi Priyadarshini"
+date: "2024-12-03"
+output: html_document
+---
+
+# Markdown for the Project
+
+### Reading in the Data (Using the Godlmine for IBM)/Librarying All the Needed Packages. 
+
+```{r}
+library(dplyr)
+library(lubridate)
+library(caret)
+library(xgboost)
+library(forecast)
+library(glmnet)
+library(randomForest) 
+library(prophet)
+
+data <- read.csv('./GoldmineIBM.csv')
+```
+
+### Data cleaning/pre processing
+
+```{r}
+data$DATE <- as.Date(data$DATE)
+data <- data[, -which(sapply(data, class) == "character")]
+
+new_resp <- rep(NA, nrow(data))
+window <- 30
+
+for(i in 1:nrow(data)){
+  
+  id <- which.min(abs(data$DATE -  data$DATE[i] - window))
+  new_resp[i] <- data$avg_buy_price_LR[id]
+}
+
+data$price_30_days_out <- new_resp
+
+
+train <- data %>% filter(DATE < "2020-01-01")
+test <- data %>% filter(DATE >= "2020-01-01")
+
+train_x <- train %>% select(-price_30_days_out, -DATE)
+train_y <- train$price_30_days_out
+
+test_x <- test %>% select(-price_30_days_out, -DATE)
+test_y <- test$price_30_days_out
+ 
+```
+
+### Linear Modeling 
+
+```{r}
+lm1 <- lm(price_30_days_out ~ ., # Set formula
+          data = train)
+summary(lm1)
+
+predictions1 <- predict(lm1, test)
+accuracy(test$price_30_days_out, predictions1)
+```
+
+### Random Forest Best Model
+
+```{r}
+set.seed(111111)
+best_rf <- randomForest(price_30_days_out ~., # Set tree formula
+                          data = na.omit(train[,2:184]), # Set dataset
+                          mtry = 183, # Set number of variables 
+                          ntree = 200, # Set number of trees
+                          nodesize = 1) # Set node size
+
+rf_preds <- predict(best_rf, test) # Create predictions for test data
+
+library(Metrics)
+rmse(test$price_30_days_out[!is.na(rf_preds)], rf_preds[!is.na(rf_preds)])
+```
+
+### XGBoost 
+
+```{r}
+dtrain <- as.matrix(train_x)
+dtest <- as.matrix(test_x)
+set.seed(111111)
+bst_final <- xgboost(data = dtrain, # Set training data
+                     label = train_y,
+                     eta = 0.05, # Set learning rate
+                     max.depth =  10, # Set max depth
+                     min_child_weight = 5, # Set minimum number of samples in node to split
+                     gamma = 0, # Set minimum loss reduction for split
+                     subsample =  1, # Set proportion of training data to use in tree
+                     colsample_bytree = 1, # Set number of variables to use in each tree
+                     nrounds = 100, # Set number of rounds
+                     early_stopping_rounds = 20, # Set number of rounds to stop at if there is no improvement
+                     verbose = 1, # 1 - Prints out fit
+                     nthread = 1, # Set number of parallel threads
+                     print_every_n = 20 # Prints out result every 20th iteration
+                     
+) # Set evaluation metric to use
+
+library(Metrics)
+actual <- test$price_30_days_out
+boost_preds <- predict(bst_final, dtest)
+rmse(actual, boost_preds)
+results <- test %>%
+  mutate(
+    predicted = boost_preds,
+    error = actual - predicted
+  )
+
+ggplot(results, aes(x = DATE)) +
+  geom_line(aes(y = actual, color = "Actual")) +
+  geom_line(aes(y = boost_preds, color = "Predicted")) +
+  labs(title = "Actual vs Predicted", y = "Response Variable") +
+  theme_minimal()
+
+```
+
+### Prophet Modeling 
+
+```{r}
+IBM_Goldmine <-  data [,-184]
+IBM_Goldmine <- IBM_Goldmine %>% rename(ds = DATE)
+IBM_Goldmine <-IBM_Goldmine %>% rename(y = avg_buy_price_LR)
+
+IBM_Goldmine$cap <- 240
+m5 <- prophet(IBM_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+
+future5 <- make_future_dataframe(m5, periods = 500)
+future5$cap <- 240
+fcst <- predict(m5, future5)
+plot(m5, fcst)
+
+tail(fcst)
+
+future5 <- cross_validation(
+  m5, 
+  horizon = 30,
+  units = 'days',
+  initial = 365,
+  period = 90)
+future5$cap <- 240
+fcst <- predict(m5, future5)
+plot(m5, fcst)
+
+PerformanceIBM<- performance_metrics(future5)
+tail(PerformanceIBM)
+PerformanceIBM[28, "rmse"]
+```
+
+
+
