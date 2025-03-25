@@ -1,4 +1,4 @@
-# Machine Learning Grad Projects
+# Machine Learning Course
 
 This repository contains assignments and a final report for graduate-level machine learning coursework.
 The focus on how and when to deploy and utilize different machine learning algorithms like regression, XGBoost, 
