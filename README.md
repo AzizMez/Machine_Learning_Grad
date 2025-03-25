@@ -16,4 +16,5 @@ Note: For the htmls you will need to download if you want to view them
 - [Assignment 2](./assignment_2.html)
 - [Random Forest Assignment](./random_forest_tuning_assignment.html)
 - [Final Report (PDF)](./Project%20Final%20Report.pdf)
-Note: There is also the r code to create graphs for the final project
+
+Note: All the r code used in the creation and tuning of the models and visualization are in the ProjectCode folder
