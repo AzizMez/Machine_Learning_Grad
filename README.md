@@ -6,8 +6,8 @@ Buttons to easily access each file are available right in the contents section.
 - 1st assignment: Linear Regression  
 - 2nd assignment: Assignment 2  
 - 3rd assignment: Random Forest  
-- Final Report: Multiple models to predict stock price using all types of financial information
-
+- Final Report: Multiple models (including prophet) to predict stock price using all types of financial information
+Note: For the htmls you will need to download if you want to view them
 ---
 
 ## Contents
@@ -16,4 +16,4 @@ Buttons to easily access each file are available right in the contents section.
 - [Assignment 2](./assignment_2.html)
 - [Random Forest Assignment](./random_forest_tuning_assignment.html)
 - [Final Report (PDF)](./Project%20Final%20Report.pdf)
-
+Note: There is also the r code to create graphs for the final project
