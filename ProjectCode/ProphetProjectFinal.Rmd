@@ -1,137 +1,196 @@
 ---
 title: "Prophet Project"
-author: "Connor Tomchin"
+author: "Abhigyan Ghosh, Aziz Al Mezraani, Chamroeun Chhay, Connor Tomchin, Emmanuel Epau, and Lakshmi Priyadarshini"
 date: "2024-11-11"
 output: html_document
 ---
 
 
 ```{r}
+# Load the Prophet package for time series forecasting
 library(prophet)
 ```
 
 
 ```{r}
+# Read the IBM dataset
 IBM_Goldmine <- read.csv("~/Desktop/Project Machine Learning/GoldmineIBM.csv")
 ```
 
 ```{r}
+# Load dplyr for data manipulation
 library(dplyr)
+
+# Rename the DATE column to 'ds' for Prophet compatibility
 IBM_Goldmine <- IBM_Goldmine %>% rename(ds = DATE)
-IBM_Goldmine <-IBM_Goldmine %>% rename(y = avg_buy_price_LR)
+
+# Rename the target variable column to 'y' as expected by Prophet
+IBM_Goldmine <- IBM_Goldmine %>% rename(y = avg_buy_price_LR)
 ```
 
 ```{r}
+# Add a cap column to use logistic growth if needed (though default growth is linear here)
 IBM_Goldmine$cap <- 240
+
+# Fit a Prophet model with yearly and weekly seasonality
 m5 <- prophet(IBM_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
 ```
 
 ```{r}
+# Create a future dataframe to extend the timeline by 500 days
 future5 <- make_future_dataframe(m5, periods = 500)
+
+# Add the same cap value for the forecasted dates
 future5$cap <- 240
+
+# Generate forecast based on the model and future dates
 fcst <- predict(m5, future5)
+
+# Plot the forecast results
 plot(m5, fcst)
 ```
 
 
 ```{r}
+# Display the last few rows of the forecast dataframe to inspect results
 tail(fcst)
 ```
 
 
 ```{r}
+# Load Google stock data
 Google_Goldmine <- read.csv("~/Desktop/Project Machine Learning/GoldmineGoog.csv")
 ```
 
 ```{r}
+# Adjust stock prices to account for a stock split on July 15, 2022
 spec_date <- as.Date("2022-07-15")
-Google_Goldmine$AdjustedStockPrice <- ifelse(Google_Goldmine$DATE <= spec_date, Google_Goldmine$avg_buy_price_LR/20, Google_Goldmine$avg_buy_price_LR)
+Google_Goldmine$AdjustedStockPrice <- ifelse(Google_Goldmine$DATE <= spec_date, Google_Goldmine$avg_buy_price_LR / 20, Google_Goldmine$avg_buy_price_LR)
+
 ```
 
 ```{r}
-Google_Goldmine <-Google_Goldmine %>% rename(ds = DATE)
-Google_Goldmine <-Google_Goldmine %>% rename(y = AdjustedStockPrice)
+# Rename columns for Prophet compatibility
+Google_Goldmine <- Google_Goldmine %>% rename(ds = DATE)
+Google_Goldmine <- Google_Goldmine %>% rename(y = AdjustedStockPrice)
+
 ```
 
 ```{r}
+# Set cap for logistic growth model
 Google_Goldmine$cap <- 191.96
+
+# Fit Prophet model on adjusted Google stock prices
 m6 <- prophet(Google_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+
 ```
 
 ```{r}
+# Create future dates and generate forecasts
 future6 <- make_future_dataframe(m6, periods = 500)
 future6$cap <- 191.96
 fcst <- predict(m6, future6)
+
+# Visualize forecast
 plot(m6, fcst)
+
 ```
 
 
 
 ```{r}
+# Inspect the forecast results
 tail(fcst)
 ```
 
 ```{r}
+# Load Microsoft stock data
 MSFT_Goldmine <- read.csv("~/Desktop/Project Machine Learning/GoldmineMsft.csv")
 ```
 
 ```{r}
-MSFT_Goldmine <-MSFT_Goldmine %>% rename(ds = DATE)
-MSFT_Goldmine <-MSFT_Goldmine %>% rename(y = avg_buy_price_LR)
+# Rename columns for Prophet input
+MSFT_Goldmine <- MSFT_Goldmine %>% rename(ds = DATE)
+MSFT_Goldmine <- MSFT_Goldmine %>% rename(y = avg_buy_price_LR)
 ```
 
 ```{r}
+# Set logistic cap for Microsoft stock
 MSFT_Goldmine$cap <- 467
+
+# Fit Prophet model to Microsoft data
 m7 <- prophet(MSFT_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+
 ```
 
 ```{r}
+# Create 500 future days and generate forecast
 future7 <- make_future_dataframe(m7, periods = 500)
 future7$cap <- 467
 fcst <- predict(m7, future7)
+
+# Plot forecast results
 plot(m7, fcst)
+
 ```
 
 ```{r}
+# Check the end of the forecast dataframe
 tail(fcst)
 ```
 
 
 ```{r}
+# Load Apple stock data
 AAPL_Goldmine <- read.csv("~/Desktop/Project Machine Learning/GoldmineAAPL.csv")
 ```
 
 ```{r}
+# Adjust for Apple stock split on August 28, 2020
 spec_date <- as.Date("2020-08-28")
-AAPL_Goldmine$AdjustedStockPrice <- ifelse(AAPL_Goldmine$DATE <= spec_date, AAPL_Goldmine$avg_buy_price_LR/4, AAPL_Goldmine$avg_buy_price_LR)
+AAPL_Goldmine$AdjustedStockPrice <- ifelse(AAPL_Goldmine$DATE <= spec_date, AAPL_Goldmine$avg_buy_price_LR / 4, AAPL_Goldmine$avg_buy_price_LR)
+
 ```
 
 
 ```{r}
-AAPL_Goldmine <-AAPL_Goldmine %>% rename(ds = DATE)
-AAPL_Goldmine <-AAPL_Goldmine %>% rename(y = AdjustedStockPrice)
+# Rename columns for Prophet input
+AAPL_Goldmine <- AAPL_Goldmine %>% rename(ds = DATE)
+AAPL_Goldmine <- AAPL_Goldmine %>% rename(y = AdjustedStockPrice)
+
 ```
 
 ```{r}
+# Set cap and fit Prophet model for Apple stock
 AAPL_Goldmine$cap <- 235
 m8 <- prophet(AAPL_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+
 ```
 
 
 ```{r}
+# Re-check forecast values for Apple data
 tail(fcst)
+
 ```
 
 
 ```{r}
+# Set a new cap value for Apple stock based on updated assumptions
 AAPL_Goldmine$cap <- 250
+
+# Fit Prophet model again for Apple with adjusted cap
 m8 <- prophet(AAPL_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+
 ```
 
 ```{r}
+# Extend Apple's timeline by 500 days and forecast
 future8 <- make_future_dataframe(m8, periods = 500)
 future8$cap <- 250
 fcst <- predict(m8, future8)
+
+# Plot the forecast for Apple
 plot(m8, fcst)
 ```
 
