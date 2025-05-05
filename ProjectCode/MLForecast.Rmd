@@ -6,82 +6,124 @@ output: html_document
 ---
 
 ```{r}
+# Load the httr2 package for API requests
 library(httr2)
 
+# Set your Alpha Vantage API key
 api_key <- "C7EO8WAEDCA0JLR2"
 
+# Specify the stock ticker (IBM in this case)
 ticker <- "IBM"
 
+# Construct the API URL using glue
 link <- glue::glue(
   "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={ticker}&apikey={api_key}&outputsize=full&datatype=csv"
-  )
+)
 
+# Perform the API request to retrieve time series stock data
 ibm_request <- request(link) %>% 
   req_perform()
 
+# Read the CSV response into a DataFrame
 ibm_daily_return <- read.delim(text = resp_body_string(ibm_request), sep = ",")
+
 
 ```
 
 
 
 ```{r}
-
+# Install and load the 'prophet' package for time series forecasting
 install.packages('prophet')
 library(prophet)
 ```
 
 
 ```{r}
+# Load dplyr for data manipulation
 library(dplyr)
-ibm_daily_return <- ibm_daily_return %>% rename(ds = timestamp)
-ibm_daily_return <-ibm_daily_return %>% rename(y = close)
 
+# Rename 'timestamp' column to 'ds' as required by Prophet
+ibm_daily_return <- ibm_daily_return %>% rename(ds = timestamp)
+
+# Rename 'close' price column to 'y' for Prophet compatibility
+ibm_daily_return <- ibm_daily_return %>% rename(y = close)
+
+# Add a 'cap' column to specify maximum capacity for logistic growth
 ibm_daily_return$cap <- 240
+
+# Fit a Prophet model on the IBM data with yearly and weekly seasonality
 m <- prophet(ibm_daily_return, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
+
+# Print the maximum close price (y) for reference
 print(max(ibm_daily_return$y, na.rm = TRUE))
 
 ```
 
 ```{r}
-
+# Create a future dataframe with 1000 days into the future
 future <- make_future_dataframe(m, periods = 1000)
+
+# Add capacity column for logistic growth model
 future$cap <- 240
+
+# Generate forecasts
 fcst <- predict(m, future)
+
+# Plot the forecast results
 plot(m, fcst)
 ```
 
 ```{r}
+# Fetch daily stock data for AAPL from Alpha Vantage
 library(httr2)
 
-api_key <- "C7EO8WAEDCA0JLR2"
+# Define API key
+api_key <- ""
 
+# Define ticker symbol
 ticker <- "AAPL"
 
+# Construct API URL for AAPL stock data
 link <- glue::glue(
   "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={ticker}&apikey={api_key}&outputsize=full&datatype=csv"
-  )
+)
 
+# Make the request and store the response
 AAPL_request <- request(link) %>% 
   req_perform()
 
+# Read CSV content into a DataFrame
 AAPL_daily_return <- read.delim(text = resp_body_string(AAPL_request), sep = ",")
 ```
 
 
 ```{r}
+ Clean and prepare AAPL data for Prophet
 library(dplyr)
-AAPL_daily_return <- AAPL_daily_return %>% rename(ds = timestamp)
-AAPL_daily_return <-AAPL_daily_return %>% rename(y = close)
 
+# Rename columns for Prophet format
+AAPL_daily_return <- AAPL_daily_return %>% rename(ds = timestamp)
+AAPL_daily_return <- AAPL_daily_return %>% rename(y = close)
+
+# Set capacity limit based on max observed value
 AAPL_daily_return$cap <- 237.49
+
+# Fit a Prophet model on AAPL data
 m2 <- prophet(AAPL_daily_return, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
 ```
 
 ```{r}
+# Create future dataframe for AAPL with 1000 future days
 future2 <- make_future_dataframe(m2, periods = 1000)
+
+# Add capacity column for logistic forecast
 future2$cap <- 240
+
+# Generate forecast on the future dates
 fcst <- predict(m2, future2)
+
+# Plot the results
 plot(m2, fcst)
 ```
 
