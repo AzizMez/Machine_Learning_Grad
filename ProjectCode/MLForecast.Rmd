@@ -1,6 +1,6 @@
 ---
 title: "Prophet Project"
-author: "Connor Tomchin"
+author: "Abhigyan Ghosh, Aziz Al Mezraani, Chamroeun Chhay, Connor Tomchin, Emmanuel Epau, and Lakshmi Priyadarshini"
 date: "2024-11-11"
 output: html_document
 ---
