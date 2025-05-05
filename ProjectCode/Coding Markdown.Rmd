@@ -10,6 +10,7 @@ output: html_document
 ### Reading in the Data (Using the Godlmine for IBM)/Librarying All the Needed Packages. 
 
 ```{r}
+#Loading necessary libraries
 library(dplyr)
 library(lubridate)
 library(caret)
@@ -19,32 +20,39 @@ library(glmnet)
 library(randomForest) 
 library(prophet)
 
+#Reading in Data
 data <- read.csv('./GoldmineIBM.csv')
 ```
 
 ### Data cleaning/pre processing
 
 ```{r}
+# Convert DATE column to Date type
 data$DATE <- as.Date(data$DATE)
+
+# Remove all character columns (non-numeric) from the dataset
 data <- data[, -which(sapply(data, class) == "character")]
 
+# Initialize new response variable (price in 30 days) with NAs
 new_resp <- rep(NA, nrow(data))
-window <- 30
+window <- 30  # Number of days to look ahead
 
+# Populate the new response with future prices (30-day forward avg_buy_price_LR)
 for(i in 1:nrow(data)){
-  
-  id <- which.min(abs(data$DATE -  data$DATE[i] - window))
-  new_resp[i] <- data$avg_buy_price_LR[id]
+  id <- which.min(abs(data$DATE -  data$DATE[i] - window))  # Closest date 30 days ahead
+  new_resp[i] <- data$avg_buy_price_LR[id]                  # Assign future price
 }
 
+# Add new target variable to dataset
 data$price_30_days_out <- new_resp
 
+# Split dataset into training and testing based on date
+train <- data %>% filter(DATE < "2020-01-01")    # Training: dates before 2020
+test <- data %>% filter(DATE >= "2020-01-01")    # Testing: dates from 2020 onward
 
-train <- data %>% filter(DATE < "2020-01-01")
-test <- data %>% filter(DATE >= "2020-01-01")
-
-train_x <- train %>% select(-price_30_days_out, -DATE)
-train_y <- train$price_30_days_out
+# Select predictor variables and target variable for train and test sets
+train_x <- train %>% select(-price_30_days_out, -DATE)  # Features only
+train_y <- train$price_30_days_out                      # Target variable
 
 test_x <- test %>% select(-price_30_days_out, -DATE)
 test_y <- test$price_30_days_out
@@ -54,35 +62,42 @@ test_y <- test$price_30_days_out
 ### Linear Modeling 
 
 ```{r}
-lm1 <- lm(price_30_days_out ~ ., # Set formula
-          data = train)
-summary(lm1)
+# Train a linear regression model on training data
+lm1 <- lm(price_30_days_out ~ ., data = train)  # Model using all predictors
+summary(lm1)                                    # Output model summary
 
-predictions1 <- predict(lm1, test)
-accuracy(test$price_30_days_out, predictions1)
+# Generate predictions and evaluate accuracy
+predictions1 <- predict(lm1, test)              # Predict on test set
+accuracy(test$price_30_days_out, predictions1)  # Forecast accuracy metrics
 ```
 
 ### Random Forest Best Model
 
 ```{r}
-set.seed(111111)
-best_rf <- randomForest(price_30_days_out ~., # Set tree formula
-                          data = na.omit(train[,2:184]), # Set dataset
-                          mtry = 183, # Set number of variables 
-                          ntree = 200, # Set number of trees
-                          nodesize = 1) # Set node size
+# Train a tuned Random Forest model
+set.seed(111111)  # For reproducibility
+best_rf <- randomForest(
+  price_30_days_out ~ ., 
+  data = na.omit(train[,2:184]),  # Use all numeric predictors
+  mtry = 183,                     # Number of features to try at each split
+  ntree = 200,                    # Number of trees
+  nodesize = 1                    # Minimum node size
+)
 
-rf_preds <- predict(best_rf, test) # Create predictions for test data
-
+# Generate predictions and compute RMSE
+rf_preds <- predict(best_rf, test)
 library(Metrics)
-rmse(test$price_30_days_out[!is.na(rf_preds)], rf_preds[!is.na(rf_preds)])
+rmse(test$price_30_days_out[!is.na(rf_preds)], rf_preds[!is.na(rf_preds)])  # Filter NAs and compute RMSE
 ```
 
 ### XGBoost 
 
 ```{r}
+# Convert training and testing features to matrices for XGBoost
 dtrain <- as.matrix(train_x)
 dtest <- as.matrix(test_x)
+
+# Train the XGBoost model with tuned hyperparameters
 set.seed(111111)
 bst_final <- xgboost(data = dtrain, # Set training data
                      label = train_y,
@@ -100,16 +115,22 @@ bst_final <- xgboost(data = dtrain, # Set training data
                      
 ) # Set evaluation metric to use
 
+# Predict and evaluate model performance on test data
 library(Metrics)
 actual <- test$price_30_days_out
 boost_preds <- predict(bst_final, dtest)
+
+# Compute RMSE for XGBoost predictions
 rmse(actual, boost_preds)
+
+# Create a dataframe with prediction errors
 results <- test %>%
   mutate(
-    predicted = boost_preds,
-    error = actual - predicted
+    predicted = boost_preds,            # Store predictions
+    error = actual - predicted          # Compute prediction error
   )
 
+# Plot actual vs predicted values over time
 ggplot(results, aes(x = DATE)) +
   geom_line(aes(y = actual, color = "Actual")) +
   geom_line(aes(y = boost_preds, color = "Predicted")) +
@@ -121,32 +142,64 @@ ggplot(results, aes(x = DATE)) +
 ### Prophet Modeling 
 
 ```{r}
-IBM_Goldmine <-  data [,-184]
-IBM_Goldmine <- IBM_Goldmine %>% rename(ds = DATE)
-IBM_Goldmine <-IBM_Goldmine %>% rename(y = avg_buy_price_LR)
+### Prophet Modeling 
 
+# Prepare data for Prophet: remove the response column to avoid leakage
+IBM_Goldmine <-  data [,-184]
+
+# Rename DATE column to 'ds' as required by Prophet
+IBM_Goldmine <- IBM_Goldmine %>% rename(ds = DATE)
+
+# Rename target column to 'y' for Prophet compatibility
+IBM_Goldmine <- IBM_Goldmine %>% rename(y = avg_buy_price_LR)
+
+# Set capacity cap for logistic growth modeling
 IBM_Goldmine$cap <- 240
+
+# Fit Prophet model with both yearly and weekly seasonality
 m5 <- prophet(IBM_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
 
+
+# Generate 500 future time steps for forecasting
 future5 <- make_future_dataframe(m5, periods = 500)
+
+# Apply the same cap to future data
 future5$cap <- 240
+
+# Predict using the fitted Prophet model
 fcst <- predict(m5, future5)
+
+# Visualize forecast results
 plot(m5, fcst)
 
+# Display the tail of forecast results
 tail(fcst)
 
+# Run cross-validation on Prophet model
 future5 <- cross_validation(
   m5, 
-  horizon = 30,
-  units = 'days',
-  initial = 365,
-  period = 90)
+  horizon = 30,        # Forecast horizon of 30 days
+  units = 'days',      
+  initial = 365,       # Initial training period
+  period = 90          # Spacing between cutoffs
+)
+
+# Re-apply cap for logistic model
 future5$cap <- 240
+
+# Predict based on cross-validation
 fcst <- predict(m5, future5)
+
+# Plot the forecasted results again
 plot(m5, fcst)
 
-PerformanceIBM<- performance_metrics(future5)
+# Evaluate Prophet model performance on cross-validation
+PerformanceIBM <- performance_metrics(future5)
+
+# Preview last few rows of metrics
 tail(PerformanceIBM)
+
+# Extract RMSE from 28th row
 PerformanceIBM[28, "rmse"]
 ```
 
