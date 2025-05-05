@@ -1,5 +1,7 @@
+# Read in data
 data <- read.csv('./GoldmineIBM.csv')
 
+# Load necessary packages
 install.packages('prophet')
 library(dplyr)
 library(lubridate)
@@ -11,47 +13,57 @@ library(randomForest)
 library(prophet)
 
 
+# Convert DATE column to Date type for time-based operations
 data$DATE <- as.Date(data$DATE)
+
+# Remove character columns (likely non-numeric, e.g., labels)
 data <- data[, -which(sapply(data, class) == "character")]
 
+# Initialize a new response variable to hold price values 30 days ahead
 new_resp <- rep(NA, nrow(data))
-window <- 30
+window <- 30  # Forecast window size (30 days)
 
+# For each row, find the price 30 days into the future and store it
 for(i in 1:nrow(data)){
-  
-  id <- which.min(abs(data$DATE -  data$DATE[i] - window))
+  id <- which.min(abs(data$DATE - data$DATE[i] - window))
   new_resp[i] <- data$avg_buy_price_LR[id]
 }
 
+# Add the new response variable to the dataset
 data$price_30_days_out <- new_resp
 
 
-train <- data %>% filter(DATE < "2020-01-01")
-test <- data %>% filter(DATE >= "2020-01-01")
+# Split the dataset into training and testing sets based on date
+train <- data %>% filter(DATE < "2020-01-01")   # All data before 2020 for training
+test <- data %>% filter(DATE >= "2020-01-01")   # All data from 2020 onwards for testing
 
-train_x <- train %>% select(-price_30_days_out, -DATE)
-train_y <- train$price_30_days_out
+# Separate features (independent variables) and target (dependent variable) for train/test sets
+train_x <- train %>% select(-price_30_days_out, -DATE)  # Remove response and date columns
+train_y <- train$price_30_days_out                      # Target variable
 
-test_x <- test %>% select(-price_30_days_out, -DATE)
-test_y <- test$price_30_days_out
+test_x <- test %>% select(-price_30_days_out, -DATE)    # Remove response and date columns
+test_y <- test$price_30_days_out                        # Target variable
 
-#linear
-lm1 <- lm(price_30_days_out ~ ., # Set formula
-          data = train)
-summary(lm1)
 
+# Linear Regression
+# Fit a linear regression model using all predictors
+lm1 <- lm(price_30_days_out ~ ., data = train)
+summary(lm1)  # View model coefficients and significance
+
+# Make predictions on the test set and evaluate accuracy
 predictions1 <- predict(lm1, test)
 accuracy(test$price_30_days_out, predictions1)
 
-#backward selection
-lm_bwd <- step(lm1, direction='backward', k=log(nrow(train)))
+#Backward Selection
+# Perform backward stepwise selection using AIC with penalty = log(n)
+lm_bwd <- step(lm1, direction = 'backward', k = log(nrow(train)))
 summary(lm_bwd)
 
+# Predict using the backward-selected model and check accuracy
 predictions2 <- predict(lm_bwd, test)
 accuracy(test$price_30_days_out, predictions2)
 
-
-#random forest
+#Random Forest
 
 set.seed(111111) # Set random number generator seed for reproducability
 # Use random forest to do bagging
@@ -102,8 +114,10 @@ g_rf <- ggplot(res_db, aes(y = trees, x = nodesize, fill = oob_error)) + # set a
   labs(x = "Node Size", y = "Number of Trees", fill = "OOB Error") # Set labels
 g_rf # Generate plot
 
-res_db[which.min(res_db$oob_error),]
+# Identify the best parameter combination (with lowest OOB error)
+res_db[which.min(res_db$oob_error), ]
 
+# Fit final random forest model using best parameters found
 set.seed(111111)
 best_rf <- randomForest(price_30_days_out ~., # Set tree formula
                           data = na.omit(train[,2:182]), # Set dataset
@@ -112,22 +126,30 @@ best_rf <- randomForest(price_30_days_out ~., # Set tree formula
                           nodesize = 1) # Set node size
 
 rf_preds <- predict(best_rf, test) # Create predictions for test data
+
+# Evaluate RMSE of predictions
 library(Metrics)
 rmse(test$price_30_days_out[!is.na(rf_preds)], rf_preds[!is.na(rf_preds)])
 
-#xgboost
+#XGBoost
+# Convert training and test features to matrices (required format for xgboost)
 dtrain <- as.matrix(train_x)
 dtest <- as.matrix(test_x)
+
+# Set seed for reproducibility and train a basic XGBoost model
 set.seed(111111)
 bst_1 <- xgboost(
   data = dtrain,
   label = train_y,
-  nrounds = 100,
-  verbose = 1,
-  print_every_n = 20
+  nrounds = 100,             # Number of boosting iterations
+  verbose = 1,               # Print output
+  print_every_n = 20         # Output progress every 20 rounds
 )
 
+# Predict using the trained XGBoost model
 preds <- predict(bst_1, dtest)
+
+# Compute RMSE between predictions and actual values
 rmse(actual, preds)
 
 ###### 1 - Tune max depth and min child weight ######
@@ -275,11 +297,7 @@ for(i in 1:nrow(cv_params)){
 
 
 
-
-
-
-
-# visualise tuning sample params
+# Visualise tuning sample params
 
 res_db <- cbind.data.frame(cv_params, rmse_vec)
 names(res_db)[3] <- c("rmse") 
@@ -483,57 +501,84 @@ bst_final <- xgboost(data = dtrain, # Set training data
 ) # Set evaluation metric to use
 
 library(Metrics)
+
+# Extract actual target values from test set
 actual <- test$price_30_days_out
+
+# Predict using the tuned XGBoost model
 boost_preds <- predict(bst_final, dtest)
+
+# Calculate RMSE between predicted and actual values
 rmse(actual, boost_preds)
+
+# Add predictions and errors to test set for plotting
 results <- test %>%
   mutate(
     predicted = boost_preds,
     error = actual - predicted
   )
 
+
+# Plot actual vs predicted prices over time
 ggplot(results, aes(x = DATE)) +
-  geom_line(aes(y = actual, color = "Actual")) +
-  geom_line(aes(y = boost_preds, color = "Predicted")) +
+  geom_line(aes(y = actual, color = "Actual")) +      # Actual values
+  geom_line(aes(y = boost_preds, color = "Predicted")) +  # Predicted values
   labs(title = "Actual vs Predicted", y = "Response Variable") +
   theme_minimal()
 
-#prophet
-IBM_Goldmine <-  data [,-184]
+#Prophet
+# Set up data for Prophet model by removing response column and renaming date + target columns
+IBM_Goldmine <- data[,-184]
 IBM_Goldmine <- IBM_Goldmine %>% rename(ds = DATE)
-IBM_Goldmine <-IBM_Goldmine %>% rename(y = avg_buy_price_LR)
+IBM_Goldmine <- IBM_Goldmine %>% rename(y = avg_buy_price_LR)
 
+# Assign growth cap and fit Prophet model
 set.seed(111111)
 IBM_Goldmine$cap <- 240
 m5 <- prophet(IBM_Goldmine, yearly.seasonality = TRUE, weekly.seasonality = TRUE)
 
 
-
+# Generate future dataframe and predict
 future5 <- make_future_dataframe(m5, periods = 500)
 future5$cap <- 240
 fcst <- predict(m5, future5)
+
+# Plot the Prophet forecast
 plot(m5, fcst)
 
 
-Closing price/price forecast 
+#Closing price/price forecast 
 
+# View forecasted values at the end of the prediction window
 tail(fcst)
 
 
+# Perform time-series cross-validation for Prophet
 set.seed(111111)
 future5 <- cross_validation(
   m5, 
-  horizon = 30,
-  units = 'days',
-  initial = 365,
-  period = 90)
+  horizon = 30,      # Forecast window
+  units = 'days',    
+  initial = 365,     # Training window
+  period = 90        # Frequency of evaluation
+)
+
+# Add cap column again (required for logistic growth)
 future5$cap <- 240
+
+# Generate predictions for each CV fold
 fcst <- predict(m5, future5)
+
+# Plot cross-validated forecasts
 plot(m5, fcst)
 
 
+# Evaluate CV performance using Prophet’s built-in metrics
+PerformanceIBM <- performance_metrics(future5)
 
-PerformanceIBM<- performance_metrics(future5)
+# Show the last few rows of metrics
 tail(PerformanceIBM)
+
+# Extract RMSE from a specific row (row 28)
 PerformanceIBM[28, "rmse"]
 
